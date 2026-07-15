@@ -1,0 +1,11 @@
+.pio/
+.clangd/
+
+# Keep only the shared extension recommendation; ignore local VS Code state.
+.vscode/*
+!.vscode/extensions.json
+**/.vscode/
+
+*.bin
+*.elf
+*.map
