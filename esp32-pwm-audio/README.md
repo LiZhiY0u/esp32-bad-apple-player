@@ -44,19 +44,22 @@ LEDC 方案已经做了以下优化：
 
 ```ini
 -D BUZZER_PIN=25
--D BUZZER_VOLUME=60
--D AUDIO_ONLY_MODE=1
+-D BUZZER_VOLUME=50
+-D AUDIO_ONLY_MODE=0
 -D AUDIO_OUTPUT_PDM=0
+-D AUDIO_VIDEO_SYNC=1
 ```
 
 - `BUZZER_PIN`：音频输出引脚
 - `BUZZER_VOLUME`：音量，范围 0～100
 - `AUDIO_ONLY_MODE=1`：只播放音乐，不初始化屏幕或 SPIFFS
-- `AUDIO_ONLY_MODE=0`：播放视频，并在第 46 帧启动音乐
+- `AUDIO_ONLY_MODE=0`：初始化屏幕并播放视频；音频启动方式由 `AUDIO_VIDEO_SYNC` 决定
 - `AUDIO_OUTPUT_PDM=0`：适合当前蜂鸣器模块的单声部 LEDC 方波驱动
 - `AUDIO_OUTPUT_PDM=1`：实验性的四声部 I2S-PDM 合成器，建议配合合适的滤波、功放和扬声器
+- `AUDIO_VIDEO_SYNC=0`：音频由独立任务立即播放，视频独立运行，用于并行稳定性测试
+- `AUDIO_VIDEO_SYNC=1`：由视频帧推进音频，用于最终音画同步
 
-当前没有连接屏幕时应保留 `AUDIO_ONLY_MODE=1`。
+当前配置会在视频第 46 帧启动音频，并由视频帧持续推进旋律，避免播放过程中逐渐产生时间偏移。
 
 ## LEDC 驱动
 

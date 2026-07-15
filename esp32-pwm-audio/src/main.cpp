@@ -23,6 +23,10 @@
 #define AUDIO_OUTPUT_PDM 0
 #endif
 
+#ifndef AUDIO_VIDEO_SYNC
+#define AUDIO_VIDEO_SYNC 1
+#endif
+
 #ifndef BUZZER_VOLUME
 #define BUZZER_VOLUME 70
 #endif
@@ -153,6 +157,7 @@ void putPixels(uint8_t c, int32_t len)
         if (curr_y >= 64)
         {
           curr_y = 0;
+#if AUDIO_VIDEO_SYNC
 #if AUDIO_OUTPUT_PDM
           if (videoFrameIndex == BadAppleMelody::kAudioStartFrame)
           {
@@ -165,6 +170,9 @@ void putPixels(uint8_t c, int32_t len)
           ++videoFrameIndex;
 #else
           badAppleMelody.updateFrame(videoFrameIndex++);
+#endif
+#else
+          ++videoFrameIndex;
 #endif
           display.display();
           // display.clear();
@@ -269,7 +277,7 @@ void readFile(fs::FS &fs, const char *path)
   c_to_dup = -1;
   lastRefresh = millis();
   videoFrameIndex = 0;
-#if !AUDIO_OUTPUT_PDM
+#if AUDIO_VIDEO_SYNC && !AUDIO_OUTPUT_PDM
   badAppleMelody.begin(BUZZER_VOLUME);
 #endif
 
@@ -319,9 +327,9 @@ void readFile(fs::FS &fs, const char *path)
       {
         Serial.print("POLL ERR! ");
         Serial.println(pres);
-#if AUDIO_OUTPUT_PDM
+#if AUDIO_VIDEO_SYNC && AUDIO_OUTPUT_PDM
         pdmAudio.end();
-#else
+#elif AUDIO_VIDEO_SYNC
         badAppleMelody.stop();
 #endif
         return;
@@ -334,9 +342,9 @@ void readFile(fs::FS &fs, const char *path)
         if (rle_bufhead >= RLEBUFSIZE)
         {
           Serial.println("RLE_SIZE ERR!");
-#if AUDIO_OUTPUT_PDM
+#if AUDIO_VIDEO_SYNC && AUDIO_OUTPUT_PDM
           pdmAudio.end();
-#else
+#elif AUDIO_VIDEO_SYNC
           badAppleMelody.stop();
 #endif
           return;
@@ -346,9 +354,9 @@ void readFile(fs::FS &fs, const char *path)
     } while (pres == HSDR_POLL_MORE);
   }
   file.close();
-#if AUDIO_OUTPUT_PDM
+#if AUDIO_VIDEO_SYNC && AUDIO_OUTPUT_PDM
   pdmAudio.end();
-#else
+#elif AUDIO_VIDEO_SYNC
   badAppleMelody.stop();
 #endif
   Serial.println("Done.");
@@ -394,6 +402,25 @@ void setup()
   return;
 #endif
 
+#if !AUDIO_VIDEO_SYNC
+  if (buzzerReady)
+  {
+#if AUDIO_OUTPUT_PDM
+    Serial.println("Independent PDM audio: playing without video sync");
+    if (!pdmAudio.begin(BUZZER_VOLUME))
+    {
+      Serial.println("PDM audio initialization failed");
+    }
+#else
+    Serial.println("Independent LEDC audio: playing without video sync");
+    if (!ledcAudio.begin(BUZZER_VOLUME))
+    {
+      Serial.println("LEDC melody task initialization failed");
+    }
+#endif
+  }
+#endif
+
   // Reset for some displays
   pinMode(16, OUTPUT);
   digitalWrite(16, LOW);
@@ -426,11 +453,5 @@ void setup()
 
 void loop()
 {
-#if AUDIO_ONLY_MODE
-#if AUDIO_OUTPUT_PDM
   delay(10);
-#else
-  delay(10);
-#endif
-#endif
 }
