@@ -2,6 +2,11 @@
 #include "SPIFFS.h"
 #include "oled/SSD1306.h"
 #include "heatshrink_decoder.h"
+#include "buzzer/PassiveBuzzer.h"
+
+#ifndef BUZZER_PIN
+#define BUZZER_PIN 25
+#endif
 
 // Hints:
 // * Adjust the display pins below
@@ -9,6 +14,9 @@
 
 SSD1306 display(0x3c, SDA, SCL); // For Heltec
 // SSD1306 display (0x3c, 5, 4);
+
+// LEDC channel 0 is reserved for the active-low passive buzzer.
+PassiveBuzzer buzzer(BUZZER_PIN, 0, true);
 
 #if HEATSHRINK_DYNAMIC_ALLOC
 #error HEATSHRINK_DYNAMIC_ALLOC must be false for static allocation test suite.
@@ -263,6 +271,11 @@ void readFile(fs::FS &fs, const char *path)
 void setup()
 {
   Serial.begin(115200);
+  if (!buzzer.begin())
+  {
+    Serial.println("Buzzer initialization failed");
+  }
+
   // Reset for some displays
   pinMode(16, OUTPUT);
   digitalWrite(16, LOW);
