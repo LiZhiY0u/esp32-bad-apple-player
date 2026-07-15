@@ -75,7 +75,7 @@ pio device monitor -b 115200
 ```ini
 -D BUZZER_PIN=25
 -D BUZZER_SELF_TEST=0
--D BUZZER_VOLUME=50
+-D BUZZER_VOLUME=40
 -D AUDIO_ONLY_MODE=0
 -D AUDIO_OUTPUT_PDM=0
 -D AUDIO_VIDEO_SYNC=1
@@ -85,7 +85,7 @@ pio device monitor -b 115200
 | --- | ---: | --- |
 | `BUZZER_PIN` | `25` | 蜂鸣器信号输出引脚 |
 | `BUZZER_SELF_TEST` | `0` | 设为 `1` 时，启动后先播放 C5、E5、G5 测试音 |
-| `BUZZER_VOLUME` | `50` | 音量参数，范围 0～100 |
+| `BUZZER_VOLUME` | `40` | 音量参数，范围 0～100 |
 | `AUDIO_ONLY_MODE` | `0` | 设为 `1` 时不初始化屏幕和 SPIFFS，只播放旋律 |
 | `AUDIO_OUTPUT_PDM` | `0` | `0` 为默认 LEDC；`1` 为实验性 I2S-PDM |
 | `AUDIO_VIDEO_SYNC` | `1` | `1` 为音画同步；`0` 为音频和视频独立运行 |

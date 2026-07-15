@@ -9,7 +9,7 @@ class BadAppleMelody
 {
 public:
   static constexpr uint8_t kVoiceCount = 4;
-  static constexpr uint16_t kAudioStartFrame = 46;
+  static constexpr uint16_t kAudioStartFrame = 49;
 
   explicit BadAppleMelody(PassiveBuzzer *buzzer = nullptr);
 
