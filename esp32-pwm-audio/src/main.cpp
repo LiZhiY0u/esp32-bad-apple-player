@@ -3,9 +3,18 @@
 #include "oled/SSD1306.h"
 #include "heatshrink_decoder.h"
 #include "buzzer/PassiveBuzzer.h"
+#include "music/BadAppleMelody.h"
 
 #ifndef BUZZER_PIN
 #define BUZZER_PIN 25
+#endif
+
+#ifndef BUZZER_SELF_TEST
+#define BUZZER_SELF_TEST 0
+#endif
+
+#ifndef AUDIO_ONLY_MODE
+#define AUDIO_ONLY_MODE 0
 #endif
 
 // Hints:
@@ -17,6 +26,40 @@ SSD1306 display(0x3c, SDA, SCL); // For Heltec
 
 // LEDC channel 0 is reserved for the active-low passive buzzer.
 PassiveBuzzer buzzer(BUZZER_PIN, 0, true);
+BadAppleMelody badAppleMelody(buzzer);
+uint32_t videoFrameIndex = 0;
+uint32_t audioOnlyStartTime = 0;
+
+void runBuzzerSelfTest()
+{
+  struct TestNote
+  {
+    uint16_t frequencyHz;
+    uint16_t durationMs;
+  };
+
+  constexpr TestNote notes[] = {
+      {523, 180}, // C5
+      {659, 180}, // E5
+      {784, 260}, // G5
+  };
+
+  Serial.println("Buzzer self-test: start");
+  for (const TestNote &note : notes)
+  {
+    if (!buzzer.playTone(note.frequencyHz, 70))
+    {
+      Serial.println("Buzzer self-test: failed to play tone");
+      buzzer.stop();
+      return;
+    }
+
+    delay(note.durationMs);
+    buzzer.stop();
+    delay(80);
+  }
+  Serial.println("Buzzer self-test: done");
+}
 
 #if HEATSHRINK_DYNAMIC_ALLOC
 #error HEATSHRINK_DYNAMIC_ALLOC must be false for static allocation test suite.
@@ -99,6 +142,7 @@ void putPixels(uint8_t c, int32_t len)
         if (curr_y >= 64)
         {
           curr_y = 0;
+          badAppleMelody.updateFrame(videoFrameIndex++);
           display.display();
           // display.clear();
           //  30 fps target rate
@@ -201,6 +245,8 @@ void readFile(fs::FS &fs, const char *path)
   runlength = -1;
   c_to_dup = -1;
   lastRefresh = millis();
+  videoFrameIndex = 0;
+  badAppleMelody.begin(70);
 
   // init decoder
   heatshrink_decoder_reset(&hsd);
@@ -248,6 +294,7 @@ void readFile(fs::FS &fs, const char *path)
       {
         Serial.print("POLL ERR! ");
         Serial.println(pres);
+        badAppleMelody.stop();
         return;
       }
 
@@ -258,6 +305,7 @@ void readFile(fs::FS &fs, const char *path)
         if (rle_bufhead >= RLEBUFSIZE)
         {
           Serial.println("RLE_SIZE ERR!");
+          badAppleMelody.stop();
           return;
         }
         decodeRLE(rle_buf[rle_bufhead++]);
@@ -265,16 +313,35 @@ void readFile(fs::FS &fs, const char *path)
     } while (pres == HSDR_POLL_MORE);
   }
   file.close();
+  badAppleMelody.stop();
   Serial.println("Done.");
 }
 
 void setup()
 {
   Serial.begin(115200);
-  if (!buzzer.begin())
+  const bool buzzerReady = buzzer.begin();
+  if (!buzzerReady)
   {
     Serial.println("Buzzer initialization failed");
   }
+
+#if BUZZER_SELF_TEST
+  if (buzzerReady)
+  {
+    runBuzzerSelfTest();
+  }
+#endif
+
+#if AUDIO_ONLY_MODE
+  if (buzzerReady)
+  {
+    Serial.println("Audio-only mode: playing Bad Apple melody");
+    badAppleMelody.begin(70);
+    audioOnlyStartTime = millis();
+  }
+  return;
+#endif
 
   // Reset for some displays
   pinMode(16, OUTPUT);
@@ -308,4 +375,8 @@ void setup()
 
 void loop()
 {
+#if AUDIO_ONLY_MODE
+  badAppleMelody.updateTime(millis() - audioOnlyStartTime);
+  delay(1);
+#endif
 }

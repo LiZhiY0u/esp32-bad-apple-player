@@ -1,0 +1,33 @@
+# 第三方软件声明
+
+## badderapple
+
+本工程中的 Bad Apple 压缩音符数据由 `cnlohr/badderapple` 项目的修改版 MIDI 生成：
+
+https://github.com/cnlohr/badderapple
+
+上游项目说明其修改版 MIDI 数据可按公有领域作品使用；项目代码采用以下 MIT 许可证：
+
+```text
+MIT License
+
+Copyright (c) 2017-2025 CNLohr, 2024-2025 evanfletcher42, 2024 Cai Biesinger
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
