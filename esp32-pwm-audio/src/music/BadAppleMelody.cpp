@@ -2,21 +2,18 @@
 
 namespace
 {
-// MIDI notes 47 (B2) through 79 (G5), rounded to the nearest hertz.
-constexpr uint16_t kNoteFrequencies[] = {
-    123, 131, 139, 147, 156, 165, 175, 185, 196, 208, 220,
-    233, 247, 262, 277, 294, 311, 330, 349, 370, 392, 415,
-    440, 466, 494, 523, 554, 587, 622, 659, 698, 740, 784,
-};
+constexpr uint8_t kFirstMidiNote = 47;
 }
 
-BadAppleMelody::BadAppleMelody(PassiveBuzzer &buzzer)
+BadAppleMelody::BadAppleMelody(PassiveBuzzer *buzzer)
     : buzzer_(buzzer),
       stackDepth_(0),
       currentTick_(0),
       nextEventTick_(0),
       outputNote_(0),
+      pendingNoiseTicks_(0),
       volumePercent_(70),
+      outputEnabled_(buzzer != nullptr),
       running_(false),
       eventStreamEnded_(false)
 {
@@ -33,12 +30,27 @@ BadAppleMelody::BadAppleMelody(PassiveBuzzer &buzzer)
 
 void BadAppleMelody::begin(uint8_t volumePercent)
 {
-  buzzer_.stop();
+  reset(volumePercent, true);
+}
+
+void BadAppleMelody::beginSequencer()
+{
+  reset(100, false);
+}
+
+void BadAppleMelody::reset(uint8_t volumePercent, bool outputEnabled)
+{
+  if (buzzer_ != nullptr)
+  {
+    buzzer_->stop();
+  }
   stackDepth_ = 0;
   currentTick_ = 0;
   nextEventTick_ = 0;
   outputNote_ = 0;
+  pendingNoiseTicks_ = 0;
   volumePercent_ = volumePercent > 100 ? 100 : volumePercent;
+  outputEnabled_ = outputEnabled && buzzer_ != nullptr;
   eventStreamEnded_ = false;
   running_ = true;
 
@@ -53,6 +65,17 @@ void BadAppleMelody::begin(uint8_t volumePercent)
     activeNotes_[i] = 0;
     noteStopTicks_[i] = 0;
   }
+}
+
+void BadAppleMelody::advanceOneTick()
+{
+  if (!running_)
+  {
+    return;
+  }
+
+  ++currentTick_;
+  performTick();
 }
 
 void BadAppleMelody::updateFrame(uint32_t frameIndex)
@@ -86,16 +109,30 @@ void BadAppleMelody::advanceToTick(uint32_t targetTick)
 {
   while (currentTick_ < targetTick && running_)
   {
-    ++currentTick_;
-    performTick();
+    advanceOneTick();
   }
 }
 
 void BadAppleMelody::stop()
 {
-  buzzer_.stop();
+  if (outputEnabled_ && buzzer_ != nullptr)
+  {
+    buzzer_->stop();
+  }
   outputNote_ = 0;
   running_ = false;
+}
+
+uint8_t BadAppleMelody::voiceNoteCode(uint8_t voiceIndex) const
+{
+  return voiceIndex < kVoiceCount ? activeNotes_[voiceIndex] : 0;
+}
+
+uint8_t BadAppleMelody::takeNoiseTrigger()
+{
+  const uint8_t duration = pendingNoiseTicks_;
+  pendingNoiseTicks_ = 0;
+  return duration;
 }
 
 bool BadAppleMelody::isFinished() const
@@ -226,7 +263,12 @@ void BadAppleMelody::performTick()
 
     if (note == BadAppleSongData::kNoiseNote)
     {
-      continue; // A single passive buzzer cannot reproduce the percussion track.
+      const uint8_t noiseTicks = durationTicks + 1;
+      if (noiseTicks > pendingNoiseTicks_)
+      {
+        pendingNoiseTicks_ = noiseTicks;
+      }
+      continue;
     }
 
     for (uint8_t i = 0; i < kVoiceCount; ++i)
@@ -249,6 +291,11 @@ void BadAppleMelody::performTick()
 
 void BadAppleMelody::updateOutput()
 {
+  if (!outputEnabled_ || buzzer_ == nullptr)
+  {
+    return;
+  }
+
   uint8_t highestNote = 0;
   for (uint8_t i = 0; i < kVoiceCount; ++i)
   {
@@ -266,12 +313,12 @@ void BadAppleMelody::updateOutput()
 
   if (highestNote == 0)
   {
-    buzzer_.stop();
+    buzzer_->stop();
     return;
   }
 
   const uint8_t noteIndex = highestNote - 1;
-  buzzer_.playTone(kNoteFrequencies[noteIndex], volumePercent_);
+  buzzer_->playMidiNote(kFirstMidiNote + noteIndex, volumePercent_);
 }
 
 bool BadAppleMelody::hasActiveNotes() const

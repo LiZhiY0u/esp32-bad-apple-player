@@ -4,6 +4,8 @@
 #include "heatshrink_decoder.h"
 #include "buzzer/PassiveBuzzer.h"
 #include "music/BadAppleMelody.h"
+#include "audio/PdmAudioPlayer.h"
+#include "audio/LedcMelodyPlayer.h"
 
 #ifndef BUZZER_PIN
 #define BUZZER_PIN 25
@@ -17,6 +19,14 @@
 #define AUDIO_ONLY_MODE 0
 #endif
 
+#ifndef AUDIO_OUTPUT_PDM
+#define AUDIO_OUTPUT_PDM 0
+#endif
+
+#ifndef BUZZER_VOLUME
+#define BUZZER_VOLUME 70
+#endif
+
 // Hints:
 // * Adjust the display pins below
 // * After uploading to ESP32, also do "ESP32 Sketch Data Upload" from Arduino
@@ -26,9 +36,10 @@ SSD1306 display(0x3c, SDA, SCL); // For Heltec
 
 // LEDC channel 0 is reserved for the active-low passive buzzer.
 PassiveBuzzer buzzer(BUZZER_PIN, 0, true);
-BadAppleMelody badAppleMelody(buzzer);
+BadAppleMelody badAppleMelody(&buzzer);
+PdmAudioPlayer pdmAudio(BUZZER_PIN);
+LedcMelodyPlayer ledcAudio(badAppleMelody);
 uint32_t videoFrameIndex = 0;
-uint32_t audioOnlyStartTime = 0;
 
 void runBuzzerSelfTest()
 {
@@ -47,7 +58,7 @@ void runBuzzerSelfTest()
   Serial.println("Buzzer self-test: start");
   for (const TestNote &note : notes)
   {
-    if (!buzzer.playTone(note.frequencyHz, 70))
+    if (!buzzer.playTone(note.frequencyHz, BUZZER_VOLUME))
     {
       Serial.println("Buzzer self-test: failed to play tone");
       buzzer.stop();
@@ -142,7 +153,19 @@ void putPixels(uint8_t c, int32_t len)
         if (curr_y >= 64)
         {
           curr_y = 0;
+#if AUDIO_OUTPUT_PDM
+          if (videoFrameIndex == BadAppleMelody::kAudioStartFrame)
+          {
+            Serial.println("PDM audio: playing Bad Apple");
+            if (!pdmAudio.begin(BUZZER_VOLUME))
+            {
+              Serial.println("PDM audio initialization failed");
+            }
+          }
+          ++videoFrameIndex;
+#else
           badAppleMelody.updateFrame(videoFrameIndex++);
+#endif
           display.display();
           // display.clear();
           //  30 fps target rate
@@ -246,7 +269,9 @@ void readFile(fs::FS &fs, const char *path)
   c_to_dup = -1;
   lastRefresh = millis();
   videoFrameIndex = 0;
-  badAppleMelody.begin(70);
+#if !AUDIO_OUTPUT_PDM
+  badAppleMelody.begin(BUZZER_VOLUME);
+#endif
 
   // init decoder
   heatshrink_decoder_reset(&hsd);
@@ -294,7 +319,11 @@ void readFile(fs::FS &fs, const char *path)
       {
         Serial.print("POLL ERR! ");
         Serial.println(pres);
+#if AUDIO_OUTPUT_PDM
+        pdmAudio.end();
+#else
         badAppleMelody.stop();
+#endif
         return;
       }
 
@@ -305,7 +334,11 @@ void readFile(fs::FS &fs, const char *path)
         if (rle_bufhead >= RLEBUFSIZE)
         {
           Serial.println("RLE_SIZE ERR!");
+#if AUDIO_OUTPUT_PDM
+          pdmAudio.end();
+#else
           badAppleMelody.stop();
+#endif
           return;
         }
         decodeRLE(rle_buf[rle_bufhead++]);
@@ -313,20 +346,28 @@ void readFile(fs::FS &fs, const char *path)
     } while (pres == HSDR_POLL_MORE);
   }
   file.close();
+#if AUDIO_OUTPUT_PDM
+  pdmAudio.end();
+#else
   badAppleMelody.stop();
+#endif
   Serial.println("Done.");
 }
 
 void setup()
 {
   Serial.begin(115200);
+#if AUDIO_OUTPUT_PDM
+  const bool buzzerReady = true;
+#else
   const bool buzzerReady = buzzer.begin();
   if (!buzzerReady)
   {
     Serial.println("Buzzer initialization failed");
   }
+#endif
 
-#if BUZZER_SELF_TEST
+#if BUZZER_SELF_TEST && !AUDIO_OUTPUT_PDM
   if (buzzerReady)
   {
     runBuzzerSelfTest();
@@ -336,9 +377,19 @@ void setup()
 #if AUDIO_ONLY_MODE
   if (buzzerReady)
   {
+#if AUDIO_OUTPUT_PDM
+    Serial.println("Audio-only PDM mode: playing Bad Apple with 4-voice DDS");
+    if (!pdmAudio.begin(BUZZER_VOLUME))
+    {
+      Serial.println("PDM audio initialization failed");
+    }
+#else
     Serial.println("Audio-only mode: playing Bad Apple melody");
-    badAppleMelody.begin(70);
-    audioOnlyStartTime = millis();
+    if (!ledcAudio.begin(BUZZER_VOLUME))
+    {
+      Serial.println("LEDC melody task initialization failed");
+    }
+#endif
   }
   return;
 #endif
@@ -376,7 +427,10 @@ void setup()
 void loop()
 {
 #if AUDIO_ONLY_MODE
-  badAppleMelody.updateTime(millis() - audioOnlyStartTime);
-  delay(1);
+#if AUDIO_OUTPUT_PDM
+  delay(10);
+#else
+  delay(10);
+#endif
 #endif
 }

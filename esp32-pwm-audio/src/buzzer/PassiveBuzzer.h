@@ -16,6 +16,9 @@ public:
   // Starts a continuous square-wave tone. Call stop() to silence it.
   bool playTone(uint32_t frequencyHz, uint8_t volumePercent = 100);
 
+  // Plays an equal-tempered MIDI note using the LEDC fractional divider.
+  bool playMidiNote(uint8_t midiNote, uint8_t volumePercent = 100);
+
   // Changes the low-pulse width without changing the current frequency.
   bool setVolume(uint8_t volumePercent);
 
@@ -29,6 +32,9 @@ public:
 private:
   uint32_t inactiveDuty() const;
   uint32_t dutyForVolume(uint8_t volumePercent) const;
+  bool playFrequency(double frequencyHz, uint8_t volumePercent);
+  bool configureExactFrequency(double frequencyHz);
+  bool fadeToDuty(uint32_t targetDuty, uint32_t durationMs, bool waitUntilDone);
 
   const uint8_t pin_;
   const uint8_t pwmChannel_;
@@ -36,6 +42,7 @@ private:
   const uint8_t resolutionBits_;
 
   bool initialized_;
+  bool fadeEnabled_;
   bool playing_;
   uint32_t frequencyHz_;
   uint8_t volumePercent_;
