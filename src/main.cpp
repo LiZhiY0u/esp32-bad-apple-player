@@ -4,6 +4,7 @@
 #include "heatshrink_decoder.h"
 #include "buzzer/PassiveBuzzer.h"
 #include "music/BadAppleMelody.h"
+#include "audio/HaruhikageMelodyPlayer.h"
 #include "audio/PdmAudioPlayer.h"
 #include "audio/LedcMelodyPlayer.h"
 
@@ -31,6 +32,17 @@
 #define BUZZER_VOLUME 70
 #endif
 
+#define AUDIO_TRACK_BAD_APPLE 0
+#define AUDIO_TRACK_HARUHIKAGE 1
+
+#ifndef AUDIO_TRACK
+#define AUDIO_TRACK AUDIO_TRACK_BAD_APPLE
+#endif
+
+#if AUDIO_TRACK != AUDIO_TRACK_BAD_APPLE && AUDIO_TRACK != AUDIO_TRACK_HARUHIKAGE
+#error AUDIO_TRACK must be 0 (Bad Apple) or 1 (Haruhikage)
+#endif
+
 // Hints:
 // * Adjust the display pins below
 // * After uploading to ESP32, also do "ESP32 Sketch Data Upload" from Arduino
@@ -43,6 +55,7 @@ PassiveBuzzer buzzer(BUZZER_PIN, 0, true);
 BadAppleMelody badAppleMelody(&buzzer);
 PdmAudioPlayer pdmAudio(BUZZER_PIN);
 LedcMelodyPlayer ledcAudio(badAppleMelody);
+HaruhikageMelodyPlayer haruhikageAudio(buzzer);
 uint32_t videoFrameIndex = 0;
 
 void runBuzzerSelfTest()
@@ -157,7 +170,7 @@ void putPixels(uint8_t c, int32_t len)
         if (curr_y >= 64)
         {
           curr_y = 0;
-#if AUDIO_VIDEO_SYNC
+#if AUDIO_VIDEO_SYNC && AUDIO_TRACK == AUDIO_TRACK_BAD_APPLE
 #if AUDIO_OUTPUT_PDM
           if (videoFrameIndex == BadAppleMelody::kAudioStartFrame)
           {
@@ -277,7 +290,7 @@ void readFile(fs::FS &fs, const char *path)
   c_to_dup = -1;
   lastRefresh = millis();
   videoFrameIndex = 0;
-#if AUDIO_VIDEO_SYNC && !AUDIO_OUTPUT_PDM
+#if AUDIO_VIDEO_SYNC && AUDIO_TRACK == AUDIO_TRACK_BAD_APPLE && !AUDIO_OUTPUT_PDM
   badAppleMelody.begin(BUZZER_VOLUME);
 #endif
 
@@ -327,9 +340,9 @@ void readFile(fs::FS &fs, const char *path)
       {
         Serial.print("POLL ERR! ");
         Serial.println(pres);
-#if AUDIO_VIDEO_SYNC && AUDIO_OUTPUT_PDM
+#if AUDIO_VIDEO_SYNC && AUDIO_TRACK == AUDIO_TRACK_BAD_APPLE && AUDIO_OUTPUT_PDM
         pdmAudio.end();
-#elif AUDIO_VIDEO_SYNC
+#elif AUDIO_VIDEO_SYNC && AUDIO_TRACK == AUDIO_TRACK_BAD_APPLE
         badAppleMelody.stop();
 #endif
         return;
@@ -342,9 +355,9 @@ void readFile(fs::FS &fs, const char *path)
         if (rle_bufhead >= RLEBUFSIZE)
         {
           Serial.println("RLE_SIZE ERR!");
-#if AUDIO_VIDEO_SYNC && AUDIO_OUTPUT_PDM
+#if AUDIO_VIDEO_SYNC && AUDIO_TRACK == AUDIO_TRACK_BAD_APPLE && AUDIO_OUTPUT_PDM
           pdmAudio.end();
-#elif AUDIO_VIDEO_SYNC
+#elif AUDIO_VIDEO_SYNC && AUDIO_TRACK == AUDIO_TRACK_BAD_APPLE
           badAppleMelody.stop();
 #endif
           return;
@@ -354,9 +367,9 @@ void readFile(fs::FS &fs, const char *path)
     } while (pres == HSDR_POLL_MORE);
   }
   file.close();
-#if AUDIO_VIDEO_SYNC && AUDIO_OUTPUT_PDM
+#if AUDIO_VIDEO_SYNC && AUDIO_TRACK == AUDIO_TRACK_BAD_APPLE && AUDIO_OUTPUT_PDM
   pdmAudio.end();
-#elif AUDIO_VIDEO_SYNC
+#elif AUDIO_VIDEO_SYNC && AUDIO_TRACK == AUDIO_TRACK_BAD_APPLE
   badAppleMelody.stop();
 #endif
   Serial.println("Done.");
@@ -365,7 +378,7 @@ void readFile(fs::FS &fs, const char *path)
 void setup()
 {
   Serial.begin(115200);
-#if AUDIO_OUTPUT_PDM
+#if AUDIO_OUTPUT_PDM && AUDIO_TRACK == AUDIO_TRACK_BAD_APPLE
   const bool buzzerReady = true;
 #else
   const bool buzzerReady = buzzer.begin();
@@ -385,7 +398,13 @@ void setup()
 #if AUDIO_ONLY_MODE
   if (buzzerReady)
   {
-#if AUDIO_OUTPUT_PDM
+#if AUDIO_TRACK == AUDIO_TRACK_HARUHIKAGE
+    Serial.println("Audio-only mode: playing Haruhikage melody");
+    if (!haruhikageAudio.begin(BUZZER_VOLUME))
+    {
+      Serial.println("Haruhikage melody task initialization failed");
+    }
+#elif AUDIO_OUTPUT_PDM
     Serial.println("Audio-only PDM mode: playing Bad Apple with 4-voice DDS");
     if (!pdmAudio.begin(BUZZER_VOLUME))
     {
@@ -402,10 +421,16 @@ void setup()
   return;
 #endif
 
-#if !AUDIO_VIDEO_SYNC
+#if !AUDIO_VIDEO_SYNC || AUDIO_TRACK == AUDIO_TRACK_HARUHIKAGE
   if (buzzerReady)
   {
-#if AUDIO_OUTPUT_PDM
+#if AUDIO_TRACK == AUDIO_TRACK_HARUHIKAGE
+    Serial.println("Independent LEDC audio: playing Haruhikage without video sync");
+    if (!haruhikageAudio.begin(BUZZER_VOLUME))
+    {
+      Serial.println("Haruhikage melody task initialization failed");
+    }
+#elif AUDIO_OUTPUT_PDM
     Serial.println("Independent PDM audio: playing without video sync");
     if (!pdmAudio.begin(BUZZER_VOLUME))
     {

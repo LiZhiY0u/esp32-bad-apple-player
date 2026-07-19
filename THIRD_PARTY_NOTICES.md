@@ -72,3 +72,13 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Haruhikage-square_wave
+
+《春日影》蜂鸣器音符数据由以下项目提供的 MIDI 第二轨转换得到：
+
+- 项目：[Einsun/Haruhikage-square_wave](https://github.com/Einsun/Haruhikage-square_wave)
+- 原始 MIDI 为双轨、97 BPM、约 250.5 秒
+- 本项目针对单个无源蜂鸣器保留第二轨，并将少量同时音符简化为最高音
+
+上游仓库当前未声明软件许可证；此处仅记录数据来源。音乐作品相关权利不因本项目的 MIT 软件许可证而改变。

@@ -1,16 +1,17 @@
 # ESP32 Bad Apple 音画播放器
 
-这是一个基于 PlatformIO 的 ESP32 项目：在 128×64 SSD1306 OLED 上播放《Bad Apple!!》黑白视频，并通过低电平触发的无源蜂鸣器模块同步播放实时合成的旋律。
+这是一个基于 PlatformIO 的 ESP32 项目：在 128×64 SSD1306 OLED 上播放《Bad Apple!!》黑白视频，并通过低电平触发的无源蜂鸣器模块同步播放实时合成的旋律。项目也提供《春日影》的单声部蜂鸣器测试模式。
 
 项目默认使用经过音准和切换优化的 LEDC 方波驱动。视频帧负责推进旋律时间线，避免音频和画面在长时间播放后逐渐漂移。仓库中也保留了实验性的四声部 I2S-PDM 合成器，便于后续继续研究音质优化。
 
-> 本项目播放的是根据音符数据实时合成的蜂鸣器旋律，不包含《Bad Apple!!》原版录音。
+> 本项目播放的是根据音符数据实时合成的蜂鸣器旋律，不包含《Bad Apple!!》或《春日影》的原版录音。
 
 ## 功能特点
 
 - SSD1306 OLED 播放 128×64 黑白压缩视频
 - 低电平触发无源蜂鸣器输出合成旋律
-- 视频第 46 帧启动音频，并以视频帧持续推进音频时间线
+- 视频第 49 帧启动 Bad Apple 音频，并以视频帧持续推进音频时间线
+- 支持《春日影》约 4 分 10 秒的完整 MIDI 主旋律、绝对时间调度测试
 - LEDC 10.8 位硬件分频，B2～G5 范围理论最大音高误差约 0.034 音分
 - 约 4 ms 硬件淡入、淡出，减轻音符切换时的爆音
 - 支持纯音频、蜂鸣器自检、音画独立运行和音画同步模式
@@ -54,7 +55,7 @@ pio run
 pio run -t upload
 ```
 
-视频文件位于 `data/video.hs`，还需要单独上传 SPIFFS 文件系统：
+当前默认配置是《春日影》纯音频测试，不需要连接屏幕，也不需要上传 SPIFFS。切换到 Bad Apple 音画模式后，视频文件位于 `data/video.hs`，还需要单独上传 SPIFFS 文件系统：
 
 ```shell
 pio run -t uploadfs
@@ -76,7 +77,8 @@ pio device monitor -b 115200
 -D BUZZER_PIN=25
 -D BUZZER_SELF_TEST=0
 -D BUZZER_VOLUME=40
--D AUDIO_ONLY_MODE=0
+-D AUDIO_TRACK=1
+-D AUDIO_ONLY_MODE=1
 -D AUDIO_OUTPUT_PDM=0
 -D AUDIO_VIDEO_SYNC=1
 ```
@@ -86,9 +88,31 @@ pio device monitor -b 115200
 | `BUZZER_PIN` | `25` | 蜂鸣器信号输出引脚 |
 | `BUZZER_SELF_TEST` | `0` | 设为 `1` 时，启动后先播放 C5、E5、G5 测试音 |
 | `BUZZER_VOLUME` | `40` | 音量参数，范围 0～100 |
-| `AUDIO_ONLY_MODE` | `0` | 设为 `1` 时不初始化屏幕和 SPIFFS，只播放旋律 |
+| `AUDIO_TRACK` | `1` | `0` 为 Bad Apple；`1` 为《春日影》单声部测试 |
+| `AUDIO_ONLY_MODE` | `1` | 设为 `1` 时不初始化屏幕和 SPIFFS，只播放旋律 |
 | `AUDIO_OUTPUT_PDM` | `0` | `0` 为默认 LEDC；`1` 为实验性 I2S-PDM |
 | `AUDIO_VIDEO_SYNC` | `1` | `1` 为音画同步；`0` 为音频和视频独立运行 |
+
+### 曲目切换
+
+直接编译默认配置时，设备完成初始化后立即开始播放《春日影》，不使用屏幕：
+
+```ini
+-D AUDIO_TRACK=1
+-D AUDIO_ONLY_MODE=1
+-D AUDIO_OUTPUT_PDM=0
+```
+
+恢复 Bad Apple 音画同步模式时改为：
+
+```ini
+-D AUDIO_TRACK=0
+-D AUDIO_ONLY_MODE=0
+-D AUDIO_OUTPUT_PDM=0
+-D AUDIO_VIDEO_SYNC=1
+```
+
+《春日影》音符取自 `Einsun/Haruhikage-square_wave` 提供的完整 MIDI。项目选用其中接近单声部的第二轨作为主旋律；少量同时发声的音符按照 Bad Apple 的单蜂鸣器处理方法保留最高音，并在相邻音符间加入短断音，使重复音更清楚。最终固件包含 649 个音符，时长约 250.5 秒，音域为 MIDI 55～79。
 
 ### 单独测试蜂鸣器
 
@@ -100,7 +124,7 @@ pio device monitor -b 115200
 -D AUDIO_OUTPUT_PDM=0
 ```
 
-启动后会先播放三个测试音，随后进入纯音频旋律播放。测试完成后建议把 `BUZZER_SELF_TEST` 改回 `0`。
+启动后会先播放三个测试音，随后进入 `AUDIO_TRACK` 选定曲目的纯音频播放。测试完成后建议把 `BUZZER_SELF_TEST` 改回 `0`。
 
 ## 音频实现
 
@@ -109,6 +133,8 @@ pio device monitor -b 115200
 `PassiveBuzzer` 使用低电平脉冲驱动模块，并提供非阻塞的连续音调输出。旋律最多包含四个同时活动的声部；受单个蜂鸣器能力限制，默认方案选择当前最高音播放并忽略打击乐。
 
 驱动按照十二平均律计算 MIDI 音符频率，并直接配置 ESP32 LEDC 的整数与小数分频器。独立播放模式使用 FreeRTOS 任务和微秒绝对时间推进 138 BPM 节拍；同步模式则由 30 FPS 视频帧推进旋律，从而避免两个独立时钟长期运行产生漂移。
+
+《春日影》使用独立的毫秒音符事件表。播放器把每个音符的开始和结束时间换算成相对同一个微秒级起点的绝对时间，因此任务调度或音符淡入淡出的少量延迟不会逐个累积。
 
 `BUZZER_VOLUME` 调整的是低电平脉冲宽度，并不等同于扬声器的线性功率控制。不同蜂鸣器模块的实际响度变化可能不同。
 
